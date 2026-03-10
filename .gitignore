@@ -11,12 +11,12 @@ src/sqlite3.c
 src/sqlite3.h
 
 # Runtime data
-payload/cyt.db
-payload/whitelist.db
-payload/cyt.log
-payload/status.json
-payload/*.pid
-payload/lib/
+library/payloads/reconnaissance/cyt/cyt.db
+library/payloads/reconnaissance/cyt/whitelist.db
+library/payloads/reconnaissance/cyt/cyt.log
+library/payloads/reconnaissance/cyt/status.json
+library/payloads/reconnaissance/cyt/*.pid
+library/payloads/reconnaissance/cyt/lib/
 
 # Python
 __pycache__/

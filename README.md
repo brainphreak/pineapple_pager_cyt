@@ -81,32 +81,64 @@ Without a GPS fix (indoors, no satellite), the location factor simply does not s
 ### Dependencies
 
 - `python3` + `python3-ctypes` — installed via opkg (payload prompts to install if missing)
-- `pagerctl` — hardware control library (`libpagerctl.so` + `pagerctl.py`), auto-copied from PAGERCTL payload or `payload/lib/`
+- `pagerctl` — hardware control library (`libpagerctl.so` + `pagerctl.py`), auto-copied from PAGERCTL payload or `lib/`
 
 ---
 
-## Payload structure
+## Repository structure
 
 ```
-payload/
-  payload.sh        Entry point — dependency checks, UI launch, headless mode
-  ble_scanner.py    Passive BLE advertisement scanner daemon
-  wifi_scanner.py   WiFi probe request + drone beacon capture daemon
-  analyzer.py       Threat scoring engine, clustering, co-occurrence grouping
-  cyt_app.py        On-device pagerctl GUI (startup menu, device list, detail view)
-  cyt_ui.py         Low-level display drawing primitives
-  web_server.py     Live dashboard web server on port 8080
-  reporter.py       Generate MD + HTML intelligence reports
-  db.py             SQLite database layer (shared by all modules)
-  gps.py            Background gpsd reader thread
+library/
+  payloads/
+    reconnaissance/
+      cyt/
+        payload.sh        Entry point — dependency checks, UI launch, headless mode
+        ble_scanner.py    Passive BLE advertisement scanner daemon
+        wifi_scanner.py   WiFi probe request + drone beacon capture daemon
+        analyzer.py       Threat scoring engine, clustering, co-occurrence grouping
+        cyt_app.py        On-device pagerctl GUI (startup menu, device list, detail view)
+        cyt_ui.py         Low-level display drawing primitives
+        web_server.py     Live dashboard web server on port 8080
+        reporter.py       Generate MD + HTML intelligence reports
+        db.py             SQLite database layer (shared by all modules)
+        gps.py            Background gpsd reader thread
+        fonts/            TTF fonts for display rendering
+src/
+  ble_scanner.c     BLE scanner (C reference implementation)
+  wifi_scanner.c    WiFi scanner (C reference implementation)
+  analyzer.c        Threat scoring engine (C reference implementation)
+  cyt_ui.c          Display UI (C reference implementation)
+  db.c / db.h       SQLite database layer (C)
+  manufacturers.h   BLE company ID lookup table
+  Makefile          Cross-compile for MIPS/OpenWrt
 ```
 
-Data files (not committed):
+Data files created at runtime (not committed):
 
 ```
   cyt.db            Scan database — sightings, persistence scores, clusters
   whitelist.db      Persistent whitelist — survives cyt.db deletion
 ```
+
+---
+
+## Deployment
+
+### Copy to Pineapple Pager
+
+```bash
+# From the repo root — copies the entire payload directory to the pager
+scp -r library/payloads/reconnaissance/cyt root@172.16.52.1:/mmc/root/payloads/reconnaissance/
+
+# Set execute permission on the entry point
+ssh root@172.16.52.1 "chmod +x /mmc/root/payloads/reconnaissance/cyt/payload.sh"
+```
+
+On first run the payload will check for `python3` and offer to install it automatically if missing.
+
+`pagerctl` (`libpagerctl.so` + `pagerctl.py`) is required and must be present in one of:
+- `/mmc/root/payloads/reconnaissance/cyt/lib/` ← copied here automatically on first run
+- `/mmc/root/payloads/utilities/PAGERCTL/` ← if PAGERCTL payload is installed
 
 ---
 
