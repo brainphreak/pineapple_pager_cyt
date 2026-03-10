@@ -209,6 +209,7 @@ class CYTApp:
 
         signal.signal(signal.SIGTERM, self._sig)
         signal.signal(signal.SIGINT,  self._sig)
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)  # auto-reap daemon child processes
 
         self.gfx = Pager()
         self.gfx.init()
@@ -232,11 +233,33 @@ class CYTApp:
     def _sig(self, sig, frame):
         self.running = False
 
+    _tw_cache = {}   # class-level text width cache
+
     def _txt(self, x, y, text, color, size=None):
         self.gfx.draw_ttf(x, y, str(text), color, FONT_TTF, size or FONT_MD)
 
     def _tw(self, text, size=None):
-        return self.gfx.ttf_width(str(text), FONT_TTF, size or FONT_MD)
+        key = (str(text), size or FONT_MD)
+        if key not in CYTApp._tw_cache:
+            if len(CYTApp._tw_cache) > 512:
+                CYTApp._tw_cache.clear()
+            CYTApp._tw_cache[key] = self.gfx.ttf_width(str(text), FONT_TTF, size or FONT_MD)
+        return CYTApp._tw_cache[key]
+
+    def _fit(self, text, avail, size=None):
+        """Truncate text to fit within avail pixels using binary search."""
+        if not text:
+            return ''
+        if self._tw(text, size) <= avail:
+            return text
+        lo, hi = 0, len(text)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if self._tw(text[:mid], size) <= avail:
+                lo = mid
+            else:
+                hi = mid - 1
+        return text[:lo]
 
     def _fetch_loop(self):
         """Background DB fetcher — never blocks the UI thread."""
@@ -332,7 +355,7 @@ class CYTApp:
             ev = self.next_event()
             if ev and ev[1] == Pager.EVENT_PRESS:
                 return ev[0]
-            time.sleep(0.016)
+            time.sleep(0.05)
         return None
 
     def drain_events(self):
@@ -461,7 +484,7 @@ class CYTApp:
             self.poll()
             ev = self.next_event()
             if not ev:
-                time.sleep(0.033)
+                time.sleep(0.05)
                 continue
 
             btn, etype = ev
@@ -556,9 +579,7 @@ class CYTApp:
         else:
             info = (d.get('name') or d.get('manufacturer') or '').strip()
         if info and x < W - 20:
-            avail = W - x - 4
-            while info and self._tw(info, FONT_SM) > avail:
-                info = info[:-1]
+            info = self._fit(info, W - x - 4, FONT_SM)
             if info:
                 self._txt(x, y + 3, info, CYAN, FONT_SM)
 
@@ -790,7 +811,7 @@ class CYTApp:
                 self.gfx.flip()
                 need_redraw = False
             else:
-                time.sleep(0.016)
+                time.sleep(0.05)
 
         return 'exit_keep'
 
@@ -935,7 +956,7 @@ class CYTApp:
             self.poll()
             ev = self.next_event()
             if not ev:
-                time.sleep(0.033)
+                time.sleep(0.05)
                 continue
 
             btn, etype = ev
