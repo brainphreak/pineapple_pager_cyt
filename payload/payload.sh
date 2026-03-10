@@ -6,7 +6,7 @@
 # Category: Reconnaissance
 # Library: libpagerctl.so (pagerctl)
 
-PAYLOAD_DIR="/root/payloads/user/reconnaissance/cyt"
+PAYLOAD_DIR="/mmc/root/payloads/reconnaissance/cyt"
 DB="$PAYLOAD_DIR/cyt.db"
 CYT_LOG="$PAYLOAD_DIR/cyt.log"
 STATUS_JSON="$PAYLOAD_DIR/status.json"
@@ -20,8 +20,8 @@ cd "$PAYLOAD_DIR" || { LOG "red" "ERROR: $PAYLOAD_DIR not found"; exit 1; }
 
 # ── pagerctl ──────────────────────────────────────────────────────
 PAGERCTL_FOUND=false
-for dir in "$PAYLOAD_DIR/lib" "/mmc/root/payloads/user/reconnaissance/pagergotchi/lib" \
-           "/mmc/root/payloads/user/utilities/PAGERCTL"; do
+for dir in "$PAYLOAD_DIR/lib" "/mmc/root/payloads/reconnaissance/pagergotchi/lib" \
+           "/mmc/root/payloads/utilities/PAGERCTL"; do
     if [ -f "$dir/libpagerctl.so" ] && [ -f "$dir/pagerctl.py" ]; then
         PAGERCTL_DIR="$dir"
         PAGERCTL_FOUND=true

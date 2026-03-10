@@ -122,16 +122,16 @@ Data files (not committed):
 ssh root@172.16.52.1
 
 # GUI mode (starts scanners + display UI)
-/mmc/root/payloads/user/reconnaissance/cyt/payload.sh
+/mmc/root/payloads/reconnaissance/cyt/payload.sh
 
 # Headless mode (scanners only, no display — keeps running after SSH disconnect)
-/mmc/root/payloads/user/reconnaissance/cyt/payload.sh --headless
+/mmc/root/payloads/reconnaissance/cyt/payload.sh --headless
 
 # Check what's running
-/mmc/root/payloads/user/reconnaissance/cyt/payload.sh --status
+/mmc/root/payloads/reconnaissance/cyt/payload.sh --status
 
 # Stop everything
-/mmc/root/payloads/user/reconnaissance/cyt/payload.sh --stop
+/mmc/root/payloads/reconnaissance/cyt/payload.sh --stop
 ```
 
 ### On-device display UI
@@ -201,7 +201,7 @@ Whitelist data is stored in `whitelist.db` — a separate file from `cyt.db`. Yo
 
 ```bash
 # On device
-cd /mmc/root/payloads/user/reconnaissance/cyt/
+cd /mmc/root/payloads/reconnaissance/cyt/
 python3 reporter.py --db cyt.db --out /tmp/cyt_report
 
 # Options
