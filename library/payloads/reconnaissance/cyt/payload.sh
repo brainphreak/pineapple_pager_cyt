@@ -156,6 +156,10 @@ stop_all() {
         [ -n "$pid" ] && kill "$pid" 2>/dev/null
         rm -f "$f"
     done
+    # Fallback: kill any orphaned CYT processes that lost their pid files
+    for script in ble_scanner wifi_scanner analyzer web_server; do
+        pkill -f "$PAYLOAD_DIR/$script.py" 2>/dev/null
+    done
 }
 
 # Wait for a pidfile to appear (max N*0.1 seconds), then verify process is alive

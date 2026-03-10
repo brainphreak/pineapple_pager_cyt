@@ -135,6 +135,13 @@ def kill_daemon(pidfile):
 def stop_all():
     for f in (BLE_PID, WIFI_PID, ANA_PID, WEB_PID):
         kill_daemon(f)
+    # Fallback: kill orphaned processes that lost their pid files
+    for script in ('ble_scanner', 'wifi_scanner', 'analyzer', 'web_server'):
+        try:
+            subprocess.call(['pkill', '-f', os.path.join(PAYLOAD_DIR, script + '.py')],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
 
 
 def _wait_pidfile(path, timeout=3.0):
