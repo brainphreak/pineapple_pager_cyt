@@ -524,30 +524,43 @@ class CYTApp:
 
         gap = self._tw('  ', FONT_SM)
 
-        lbl = threat_label(d['threat_score'])
-        score_str = f'{lbl} {d["threat_score"]:.2f}'
         x = 2
+        if d.get('whitelisted'):
+            score_str = 'WL'
+            fg        = DKGREEN
+        else:
+            fg        = threat_color(d['threat_score'])
+            score_str = f'{threat_label(d["threat_score"])} {d["threat_score"]:.2f}'
         self._txt(x, y + 3, score_str, fg, FONT_SM)
         x += self._tw(score_str, FONT_SM) + gap
 
         self._txt(x, y + 3, d['mac'], WHITE if selected else GRAY, FONT_SM)
         x += self._tw(d['mac'], FONT_SM) + gap
 
-        src_col = CYAN if d['source'] == 'ble' else (ORANGE if d['source'] == 'drone' else GREEN)
-        src_label = d['source'].upper()
+        src = d['source']
+        if src == 'ble':     src_col = CYAN
+        elif src == 'drone': src_col = ORANGE
+        elif src == 'wifi':  src_col = GREEN
+        else:                src_col = GRAY
+        src_label = src.upper() if src != '?' else '--'
         if d.get('cluster_id'): src_label += f' C{d["cluster_id"]}'
         if d.get('group_id'):   src_label += f' G{d["group_id"]}'
         self._txt(x, y + 3, src_label, src_col, FONT_SM)
         x += self._tw(src_label, FONT_SM) + gap
 
-        # Manufacturer — truncated to remaining space
-        mfr = (d.get('manufacturer') or d.get('name') or '').strip()
-        if mfr and x < W - 20:
+        # Right-side info — name/SSIDs first, fall back to manufacturer
+        if d['source'] == 'wifi':
+            ssid_set = d.get('ssid_set') or ''
+            info = ssid_set.replace(',', '  ').strip() or \
+                   (d.get('name') or d.get('manufacturer') or '').strip()
+        else:
+            info = (d.get('name') or d.get('manufacturer') or '').strip()
+        if info and x < W - 20:
             avail = W - x - 4
-            while mfr and self._tw(mfr, FONT_SM) > avail:
-                mfr = mfr[:-1]
-            if mfr:
-                self._txt(x, y + 3, mfr, CYAN, FONT_SM)
+            while info and self._tw(info, FONT_SM) > avail:
+                info = info[:-1]
+            if info:
+                self._txt(x, y + 3, info, CYAN, FONT_SM)
 
     def _show_detail(self, d):
         import datetime as dt
@@ -579,6 +592,9 @@ class CYTApp:
                 dur   = int((d['last_seen'] - d['first_seen']) / 60)
                 lines.append((f'{first} - {last}  {dur}min', WHITE))
             lines.append((f'Mfr: {mfr}', CYAN))
+            if d.get('source') == 'wifi' and d.get('ssid_set'):
+                probes = d['ssid_set'].replace(',', '  ')
+                lines.append((f'Probes: {probes}', CYAN))
             if d.get('locations_seen', 0) > 1:
                 lines.append((f'MULTI-LOC: {d["locations_seen"]} positions', RED))
             if d.get('cluster_id'):
@@ -653,7 +669,7 @@ class CYTApp:
         """
         Returns: 'menu' | 'exit_keep' | 'exit_stop' | 'exit_stop_web'
         """
-        FILTER_CYCLE = ['all', 'ble', 'wifi', 'drone']
+        FILTER_CYCLE = ['all', 'ble', 'wifi', 'drone', 'whitelist']
         scroll      = 0
         sel         = 0
         filter_idx  = 0
@@ -697,9 +713,10 @@ class CYTApp:
                             self.drain_events()
                             need_redraw = True
                     elif btn in (Pager.BTN_LEFT, Pager.BTN_RIGHT):
-                        filter_idx = (filter_idx + 1) % len(FILTER_CYCLE)
-                        scroll     = 0
-                        sel        = 0
+                        filter_idx  = (filter_idx + 1) % len(FILTER_CYCLE)
+                        scroll      = 0
+                        sel         = 0
+                        last_version = -1   # force recompute for new filter
                         need_redraw = True
                     elif btn == Pager.BTN_B:
                         result = self.run_exit_menu()
@@ -717,13 +734,34 @@ class CYTApp:
                     ble_total  = self._cache['ble_total']
                     wifi_total = self._cache['wifi_total']
                     wl_macs    = self._cache['wl_macs']
+                    wl_entries = list(self._cache['wl_entries'])
                     last_version = cur_version
-                    devices   = [d for d in all_devs
-                                 if d['mac'].upper() not in wl_macs
-                                 and (cur_filter == 'all' or d['source'] == cur_filter)
-                                 ][:self.limit]
+
+                    if cur_filter == 'whitelist':
+                        # Build list of whitelisted devices — from persistence + stubs for unseen
+                        covered = {d['mac'].upper(): dict(d, whitelisted=True)
+                                   for d in all_devs if d['mac'].upper() in wl_macs}
+                        for e in wl_entries:
+                            m = e['mac'].upper()
+                            if m not in covered:
+                                covered[m] = {
+                                    'mac': e['mac'], 'source': '?', 'threat_score': 0.0,
+                                    'manufacturer': e.get('name', ''), 'name': '',
+                                    'avg_rssi': 0, 'sighting_count': 0,
+                                    'first_seen': None, 'last_seen': None,
+                                    'locations_seen': 0, 'cluster_id': None,
+                                    'group_id': None, 'whitelisted': True,
+                                }
+                        devices = list(covered.values())[:self.limit]
+                        threats = 0
+                    else:
+                        devices = [d for d in all_devs
+                                   if d['mac'].upper() not in wl_macs
+                                   and (cur_filter == 'all' or d['source'] == cur_filter)
+                                   ][:self.limit]
+                        threats = sum(1 for d in devices if d['threat_score'] >= 0.40)
+
                     max_score = max((d['threat_score'] for d in devices), default=0.0)
-                    threats   = sum(1 for d in devices if d['threat_score'] >= 0.40)
                     sel       = min(sel, max(0, len(devices) - 1))
                     need_redraw = True
 
@@ -861,10 +899,11 @@ class CYTApp:
         Returns: 'exit_keep' | 'exit_stop' | 'exit_stop_web' | 'back'
         """
         items = [
+            ('back',          'Back to device list'),
+            ('menu',          'Back to start menu'),
             ('exit_keep',     'Keep running (exit UI)'),
             ('exit_stop_web', 'Stop web UI only'),
             ('exit_stop',     'Stop CYT completely'),
-            ('back',          'Back to device list'),
         ]
         sel = 0
         self.drain_events()
