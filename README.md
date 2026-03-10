@@ -40,10 +40,10 @@ Scores map to threat levels:
 ### What it captures
 
 **BLE (Bluetooth Low Energy)**
-Passive scan on `hci1` using `hcitool lescan` + `btmon`. Captures every advertising device in range (~10–50m depending on conditions). Identifies Apple device subtypes (AirDrop, Find My, AirPods, Nearby, etc.) from manufacturer advertisement payloads.
+Passive scan using `hcitool lescan` + `btmon` (HCI adapter auto-detected). Captures every advertising device in range (~10–50m depending on conditions). Identifies Apple device subtypes (AirDrop, Find My, AirPods, Nearby, etc.) from manufacturer advertisement payloads.
 
 **WiFi probe requests**
-Monitor mode capture on `wlan0mon` using `tcpdump`. When a phone's WiFi is on, it constantly broadcasts the names of remembered networks it's looking for. These probe requests contain the device's MAC address and the SSID names.
+Monitor mode capture on `wlan0mon` using `tcpdump`. When a phone's WiFi is on, it constantly broadcasts the names of remembered networks it's looking for. These probe requests contain the device's MAC address and the SSID names. Manufacturer identification uses a full Wireshark-sourced OUI database of 38,794 entries (IEEE-accurate). Devices with randomized/locally-administered MACs are identified as `Randomized` rather than receiving a false OUI match.
 
 **Drone beacons**
 802.11 beacon frames from DJI, Parrot, and other commercial drones. Drones broadcast their identity continuously — the scanner matches against 13 DJI OUIs plus SSID name patterns (MAVIC-, PHANTOM-, SPARK-, MINI-, etc.).
