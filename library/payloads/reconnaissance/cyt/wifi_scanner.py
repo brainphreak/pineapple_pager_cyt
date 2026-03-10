@@ -22,22 +22,28 @@ import gps as gpsmod
 running = True
 tcpdump_proc = None
 
-# MAC OUI manufacturer lookup (first 3 bytes)
-OUI_MAP = {
-    'd0:73:d5': 'Hak5',
-    'ac:37:43': 'HTC',
-    '00:13:37': 'Hak5',
-    'f4:60:e2': 'Apple',
-    'a4:c3:f0': 'Apple',
-    '3c:06:30': 'Apple',
-    '8c:85:90': 'Apple',
-    'f0:18:98': 'Apple',
-    '38:2c:e5': 'Apple',
-    '00:50:f2': 'Microsoft',
-    '00:21:6b': 'Samsung',
-    '78:f8:82': 'Samsung',
-    'a4:50:46': 'Samsung',
-}
+# MAC OUI manufacturer lookup — loaded from oui.tsv (Wireshark manuf data, ~38k entries)
+_OUI_MAP = None
+
+def _load_oui_map():
+    global _OUI_MAP
+    if _OUI_MAP is not None:
+        return _OUI_MAP
+    _OUI_MAP = {}
+    tsv = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oui.tsv')
+    try:
+        with open(tsv) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split('	', 1)
+                if len(parts) == 2:
+                    _OUI_MAP[parts[0]] = parts[1]
+    except Exception:
+        pass
+    return _OUI_MAP
+
 
 # Drone OUI table — DJI, Parrot, and other commercial UAV makers
 DRONE_OUI = {
@@ -99,8 +105,13 @@ def write_pidfile(path):
 
 
 def oui_lookup(mac: str) -> str:
+    try:
+        if int(mac.split(':')[0], 16) & 2:
+            return 'Randomized'
+    except Exception:
+        pass
     prefix = mac[:8].lower()
-    return OUI_MAP.get(prefix, '')
+    return _load_oui_map().get(prefix, '')
 
 
 def auto_detect_iface() -> str:
