@@ -42,12 +42,12 @@ STATUS_JSON = os.path.join(PAYLOAD_DIR, 'status.json')
 
 # ── Layout ────────────────────────────────────────────────────────
 W, H      = 480, 222
-STATUS_H  = 20
-CTRL_H    = 16
-ROW_H     = 20
+STATUS_H  = 22
+CTRL_H    = 22
+ROW_H     = 22
 LIST_Y    = STATUS_H + 1
 LIST_H    = H - STATUS_H - CTRL_H - 2
-ROWS_VIS  = LIST_H // ROW_H    # ~9 rows
+ROWS_VIS  = LIST_H // ROW_H    # ~8 rows
 
 # ── Colors ────────────────────────────────────────────────────────
 BLACK    = 0x0000
@@ -360,30 +360,25 @@ class CYTApp:
 
             # Title bar
             self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
-            self.gfx.draw_text(4, 3, 'CHASING YOUR TAIL', WHITE, 1)
+            self.gfx.draw_text(4, 3, 'CHASING YOUR TAIL', WHITE, 2)
             ver = 'v1.0'
-            tw = self.gfx.text_width(ver, 1)
-            self.gfx.draw_text(W - tw - 4, 3, ver, GRAY, 1)
+            tw = self.gfx.text_width(ver, 2)
+            self.gfx.draw_text(W - tw - 4, 3, ver, GRAY, 2)
 
             # Daemon status line
-            y = STATUS_H + 4
-            dot_on  = lambda: DKGREEN
-            dot_off = lambda: GRAY
-
-            def dot(alive): return ('BLK', DKGREEN) if alive else ('BLK', DARKGRAY)
-
+            y = STATUS_H + 3
             dx = 4
             for label, pid in [('BLE', st['ble']), ('WiFi', st['wifi']),
                                 ('Ana', st['analyzer']), ('Web', st['web'])]:
                 col = DKGREEN if pid else DARKGRAY
-                self.gfx.draw_text(dx, y, label + ':', GRAY, 1)
-                dx += self.gfx.text_width(label + ': ', 1)
+                self.gfx.draw_text(dx, y, label + ':', GRAY, 2)
+                dx += self.gfx.text_width(label + ': ', 2)
                 status_str = 'ON ' if pid else 'OFF'
-                self.gfx.draw_text(dx, y, status_str, col, 1)
-                dx += self.gfx.text_width('ON  ', 1) + 4
+                self.gfx.draw_text(dx, y, status_str, col, 2)
+                dx += self.gfx.text_width('ON  ', 2) + 4
 
             # Device summary
-            y2 = y + 12
+            y2 = y + 20
             with self._cache_lock:
                 devs = list(self._cache['all_devs'])
             n_total = len(devs)
@@ -393,36 +388,36 @@ class CYTApp:
             if n_high:  summary += f'  {n_high} HIGH'
             if n_med:   summary += f'  {n_med} MED'
             if not devs: summary = 'No data yet'
-            self.gfx.draw_text(4, y2, summary, CYAN, 1)
+            self.gfx.draw_text(4, y2, summary, CYAN, 2)
 
             # Separator
-            sep_y = STATUS_H + 38
+            sep_y = y2 + 20
             self.gfx.hline(0, sep_y, W, GRAY)
 
             # Menu items
-            my = sep_y + 8
+            my = sep_y + 6
             for i, (action, label) in enumerate(items):
                 is_sel = (i == sel)
                 fg = GREEN if is_sel else WHITE
-                prefix = chr(16) + ' ' if is_sel else '  '   # chr(16) = ▶
+                prefix = '> ' if is_sel else '  '
 
                 if action == 'web_toggle':
                     web_label = prefix + 'Web UI: '
-                    self.gfx.draw_text(40, my, web_label, fg, 1)
-                    tw = self.gfx.text_width(web_label, 1)
+                    self.gfx.draw_text(24, my, web_label, fg, 2)
+                    tw = self.gfx.text_width(web_label, 2)
                     val = 'ON ' if web_on else 'OFF'
                     vcol = DKGREEN if web_on else RED
-                    self.gfx.draw_text(40 + tw, my, val, vcol, 1)
+                    self.gfx.draw_text(24 + tw, my, val, vcol, 2)
                 else:
-                    self.gfx.draw_text(40, my, prefix + label, fg, 1)
+                    self.gfx.draw_text(24, my, prefix + label, fg, 2)
 
-                my += 18
+                my += 20
 
             # Control bar
             cy = H - CTRL_H
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
             self.gfx.hline(0, cy, W, GRAY)
-            self.gfx.draw_text(4, cy + 4, '[^v] Navigate  [A] Select  [B] Exit', WHITE, 1)
+            self.gfx.draw_text(4, cy + 3, '[^v] Navigate  [A] Select  [B] Exit', WHITE, 2)
 
             self.gfx.flip()
 
@@ -474,18 +469,18 @@ class CYTApp:
     def _draw_status_bar(self, ble_total, wifi_total, threats, filter_src):
         self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
         ts = time.strftime('%H:%M')
-        self.gfx.draw_text(2, 3, f'CYT  BLE:{ble_total} WiFi:{wifi_total}', WHITE, 1)
-        if threats > 0:
-            self.gfx.draw_text(230, 3, f'! {threats} THREATS', RED, 1)
+        self.gfx.draw_text(2, 3, f'CYT  B:{ble_total} W:{wifi_total}', WHITE, 2)
         right = f'{filter_src.upper()}  {ts}'
-        tw = self.gfx.text_width(right, 1)
-        self.gfx.draw_text(W - tw - 4, 3, right, GRAY, 1)
+        if threats > 0:
+            right = f'!{threats}  ' + right
+        tw = self.gfx.text_width(right, 2)
+        self.gfx.draw_text(W - tw - 2, 3, right, RED if threats > 0 else GRAY, 2)
 
     def _draw_ctrl_bar(self):
         y = H - CTRL_H
         self.gfx.fill_rect(0, y, W, CTRL_H, DARKGRAY)
         self.gfx.hline(0, y, W, GRAY)
-        self.gfx.draw_text(4, y + 4, '[A]Detail [B]Menu [</]Filter [^v]Scroll', WHITE, 1)
+        self.gfx.draw_text(4, y + 3, '[A]Detail [B]Menu [<>]Filter [^v]Scroll', WHITE, 2)
 
     def _draw_device_row(self, idx, d, selected):
         y  = LIST_Y + idx * ROW_H
@@ -497,23 +492,18 @@ class CYTApp:
         self.gfx.fill_rect(0, y + (ROW_H - bar_h), 4, bar_h, fg)
 
         lbl = threat_label(d['threat_score'])
-        self.gfx.draw_text(6,   y + 4, f'{lbl} {d["threat_score"]:.2f}', fg, 1)
-        self.gfx.draw_text(78,  y + 4, d['mac'], WHITE if selected else GRAY, 1)
+        self.gfx.draw_text(6,   y + 3, f'{lbl} {d["threat_score"]:.2f}', fg, 2)
+        self.gfx.draw_text(116, y + 3, d['mac'], WHITE if selected else GRAY, 2)
 
         src_col = CYAN if d['source'] == 'ble' else (ORANGE if d['source'] == 'drone' else GREEN)
         src_label = d['source'].upper()
         if d.get('cluster_id'): src_label += f' C{d["cluster_id"]}'
         if d.get('group_id'):   src_label += f' G{d["group_id"]}'
-        self.gfx.draw_text(209, y + 4, src_label, src_col, 1)
+        self.gfx.draw_text(326, y + 3, src_label, src_col, 2)
 
-        mfr = (d.get('manufacturer') or 'Unknown')
-        nm  = (d.get('name') or '')
-        label = f'{mfr[:18]}  {nm[:14]}'.rstrip()
-        self.gfx.draw_text(295, y + 4, label, fg, 1)
-
-        rssi_str = f'{d["avg_rssi"]}dB'
-        tw = self.gfx.text_width(rssi_str, 1)
-        self.gfx.draw_text(W - tw - 4, y + 4, rssi_str, GRAY, 1)
+        rssi_str = f'{d["avg_rssi"]}'
+        tw = self.gfx.text_width(rssi_str, 2)
+        self.gfx.draw_text(W - tw - 4, y + 3, rssi_str, GRAY, 2)
 
     def _show_detail(self, d):
         import datetime as dt
@@ -534,41 +524,41 @@ class CYTApp:
             self.gfx.hline(0, y, W, GRAY); y += 6
 
             lines = [
-                (f'MAC:    {d["mac"]}  ({d["source"].upper()})', WHITE),
-                (f'Score:  {d["threat_score"]:.2f}  [{lvl(d["threat_score"])}]', fg),
-                (f'Device: {d.get("manufacturer") or "Unknown"}', CYAN),
-                (f'Name:   {d.get("name") or "(none)"}', CYAN),
-                (f'RSSI:   {d["avg_rssi"]} dBm  Sightings: {d["sighting_count"]}', WHITE),
+                (f'MAC:   {d["mac"]}  ({d["source"].upper()})', WHITE),
+                (f'Score: {d["threat_score"]:.2f}  [{lvl(d["threat_score"])}]', fg),
+                (f'Mfr:   {d.get("manufacturer") or "Unknown"}', CYAN),
+                (f'Name:  {d.get("name") or "(none)"}', CYAN),
+                (f'RSSI:  {d["avg_rssi"]} dBm   Seen: {d["sighting_count"]}x', WHITE),
             ]
             if d.get('first_seen'):
                 first = dt.datetime.fromtimestamp(d['first_seen']).strftime('%H:%M:%S')
                 last  = dt.datetime.fromtimestamp(d['last_seen']).strftime('%H:%M:%S')
                 dur   = int((d['last_seen'] - d['first_seen']) / 60)
                 lines += [
-                    (f'First:  {first}  Last: {last}', WHITE),
+                    (f'First: {first}  Last: {last}', WHITE),
                     (f'Duration: {dur} min', WHITE),
                 ]
             if d.get('locations_seen', 0) > 1:
-                lines.append((f'*** MULTI-LOCATION: {d["locations_seen"]} positions ***', RED))
+                lines.append((f'** MULTI-LOCATION: {d["locations_seen"]} positions **', RED))
             if d.get('cluster_id'):
-                lines.append((f'MAC cluster: C{d["cluster_id"]}  (rotating MAC detected)', YELLOW))
+                lines.append((f'Cluster C{d["cluster_id"]} — rotating MAC detected', YELLOW))
             if d.get('group_id'):
-                lines.append((f'Co-occurrence group: G{d["group_id"]}  (travels with others)', ORANGE))
+                lines.append((f'Group G{d["group_id"]} — travels with others', ORANGE))
             if is_wl:
-                lines.append(('[ WHITELISTED — ignored by scorer ]', DKGREEN))
+                lines.append(('[ WHITELISTED ]', DKGREEN))
 
             for text, color in lines:
-                self.gfx.draw_text(4, y, text, color, 1)
-                y += 14
+                self.gfx.draw_text(4, y, text, color, 2)
+                y += 18
 
             if msg:
-                self.gfx.draw_text(4, y + 4, msg, GREEN, 1)
+                self.gfx.draw_text(4, y + 2, msg, GREEN, 2)
 
             cy = H - CTRL_H
             self.gfx.hline(0, cy - 1, W, GRAY)
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
             wl_label = '[<] Un-whitelist' if is_wl else '[<] Whitelist'
-            self.gfx.draw_text(4, cy + 4, f'[A/B] Back  {wl_label}', WHITE, 1)
+            self.gfx.draw_text(4, cy + 3, f'[A/B] Back  {wl_label}', WHITE, 2)
             self.gfx.flip()
 
         # Check current whitelist status using a short-lived connection
@@ -786,37 +776,37 @@ class CYTApp:
             # ── Draw ─────────────────────────────────────────────
             self.gfx.clear(BLACK)
             self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
-            self.gfx.draw_text(4, 3, 'WHITELIST', WHITE, 1)
+            self.gfx.draw_text(4, 3, 'WHITELIST', WHITE, 2)
             n = len(entries)
-            self.gfx.draw_text(W - self.gfx.text_width(f'{n} entries', 1) - 4, 3,
-                               f'{n} entries', GRAY, 1)
+            self.gfx.draw_text(W - self.gfx.text_width(f'{n} entries', 2) - 4, 3,
+                               f'{n} entries', GRAY, 2)
 
             y = STATUS_H + 4
             if not entries:
-                self.gfx.draw_text(4, y + 20, 'Whitelist is empty.', GRAY, 1)
+                self.gfx.draw_text(4, y + 20, 'Whitelist is empty.', GRAY, 2)
             else:
-                visible = (H - STATUS_H - CTRL_H - 4) // 16
+                visible = (H - STATUS_H - CTRL_H - 4) // 20
                 start   = max(0, sel - visible + 1) if sel >= visible else 0
                 for i, e in enumerate(entries[start:start + visible]):
                     row_i = start + i
                     is_sel = (row_i == sel)
                     bg = DARKGRAY if is_sel else BLACK
-                    self.gfx.fill_rect(0, y, W, 15, bg)
+                    self.gfx.fill_rect(0, y, W, 19, bg)
                     prefix = '> ' if is_sel else '  '
                     name = e.get('name') or ''
                     label = f'{prefix}{e["mac"]}'
                     if name:
-                        label += f'  {name[:20]}'
-                    self.gfx.draw_text(4, y + 2, label, WHITE if is_sel else GRAY, 1)
-                    y += 16
+                        label += f'  {name[:16]}'
+                    self.gfx.draw_text(4, y + 2, label, WHITE if is_sel else GRAY, 2)
+                    y += 20
 
             if msg and time.time() < msg_timer:
-                self.gfx.draw_text(4, H - CTRL_H - 14, msg, GREEN, 1)
+                self.gfx.draw_text(4, H - CTRL_H - 20, msg, GREEN, 2)
 
             cy = H - CTRL_H
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
             self.gfx.hline(0, cy, W, GRAY)
-            self.gfx.draw_text(4, cy + 4, '[^v] Scroll  [A] Remove  [B] Back', WHITE, 1)
+            self.gfx.draw_text(4, cy + 3, '[^v] Scroll  [A] Remove  [B] Back', WHITE, 2)
             self.gfx.flip()
             time.sleep(0.05)
 
