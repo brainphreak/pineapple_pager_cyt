@@ -703,6 +703,8 @@ class CYTApp:
         last_version = -1
         last_time    = ''
         need_redraw  = True
+        sel_changed  = False   # selection-only change — partial redraw
+        prev_sel     = -1
 
         self.drain_events()
 
@@ -719,15 +721,23 @@ class CYTApp:
                 btn, etype = ev
                 if etype == Pager.EVENT_PRESS:
                     if btn == Pager.BTN_DOWN:
-                        sel = min(sel + 1, max(0, len(devices) - 1))
-                        if sel >= scroll + ROWS_VIS:
-                            scroll = sel - ROWS_VIS + 1
-                        need_redraw = True
+                        new_sel = min(sel + 1, max(0, len(devices) - 1))
+                        if new_sel != sel:
+                            sel = new_sel
+                            if sel >= scroll + ROWS_VIS:
+                                scroll = sel - ROWS_VIS + 1
+                                need_redraw = True
+                            else:
+                                sel_changed = True
                     elif btn == Pager.BTN_UP:
-                        sel = max(sel - 1, 0)
-                        if sel < scroll:
-                            scroll = sel
-                        need_redraw = True
+                        new_sel = max(sel - 1, 0)
+                        if new_sel != sel:
+                            sel = new_sel
+                            if sel < scroll:
+                                scroll = sel
+                                need_redraw = True
+                            else:
+                                sel_changed = True
                     elif btn == Pager.BTN_A:
                         if devices and sel < len(devices):
                             self._show_detail(devices[sel])
@@ -759,7 +769,6 @@ class CYTApp:
                     last_version = cur_version
 
                     if cur_filter == 'whitelist':
-                        # Build list of whitelisted devices — from persistence + stubs for unseen
                         covered = {d['mac'].upper(): dict(d, whitelisted=True)
                                    for d in all_devs if d['mac'].upper() in wl_macs}
                         for e in wl_entries:
@@ -785,6 +794,7 @@ class CYTApp:
                     max_score = max((d['threat_score'] for d in devices), default=0.0)
                     sel       = min(sel, max(0, len(devices) - 1))
                     need_redraw = True
+                    sel_changed = False
 
             # Check for time change (status bar HH:MM)
             cur_time = time.strftime('%I:%M%p').lstrip('0')
@@ -797,8 +807,9 @@ class CYTApp:
                 self._update_leds(max_score)
                 prev_max = max_score
 
-            # ── Draw only when something changed ──────────────────
+            # ── Draw ──────────────────────────────────────────────
             if need_redraw:
+                # Full redraw — data/filter/scroll changed
                 self.gfx.clear(BLACK)
                 self._draw_status_bar(ble_total, wifi_total, threats, cur_filter)
                 self.gfx.hline(0, STATUS_H, W, GRAY)
@@ -810,6 +821,19 @@ class CYTApp:
                 self._draw_ctrl_bar()
                 self.gfx.flip()
                 need_redraw = False
+                sel_changed = False
+                prev_sel    = sel
+            elif sel_changed:
+                # Partial redraw — only the two affected rows
+                old_i = prev_sel - scroll
+                new_i = sel - scroll
+                if 0 <= old_i < ROWS_VIS and old_i < len(devices):
+                    self._draw_device_row(old_i, devices[scroll + old_i], selected=False)
+                if 0 <= new_i < ROWS_VIS and new_i < len(devices):
+                    self._draw_device_row(new_i, devices[scroll + new_i], selected=True)
+                self.gfx.flip()
+                sel_changed = False
+                prev_sel    = sel
             else:
                 time.sleep(0.05)
 
