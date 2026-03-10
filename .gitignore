@@ -1,0 +1,30 @@
+# Build artifacts
+build/
+src/*.o
+src/ble_scanner
+src/analyzer
+src/wifi_scanner
+src/cyt_ui
+
+# SQLite amalgamation (large, downloaded separately)
+src/sqlite3.c
+src/sqlite3.h
+
+# Runtime data
+payload/cyt.db
+payload/whitelist.db
+payload/cyt.log
+payload/status.json
+payload/*.pid
+payload/lib/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Data/test files
+data/
