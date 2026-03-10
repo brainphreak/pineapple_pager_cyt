@@ -3,7 +3,7 @@
 # Usage: ./scripts/deploy.sh [user@host]
 
 DEVICE="${1:-root@172.16.52.1}"
-DEVICE_PATH="/mmc/root/payloads/reconnaissance/cyt"
+DEVICE_PATH="/mmc/root/payloads/user/reconnaissance/cyt"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PAYLOAD_DIR="$(dirname "$SCRIPT_DIR")/library/payloads/reconnaissance/cyt"

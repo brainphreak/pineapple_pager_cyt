@@ -6,7 +6,7 @@
 # Category: Reconnaissance
 # Library: libpagerctl.so (pagerctl)
 
-PAYLOAD_DIR="/mmc/root/payloads/reconnaissance/cyt"
+PAYLOAD_DIR="/mmc/root/payloads/user/reconnaissance/cyt"
 DB="$PAYLOAD_DIR/cyt.db"
 CYT_LOG="$PAYLOAD_DIR/cyt.log"
 STATUS_JSON="$PAYLOAD_DIR/status.json"
@@ -177,12 +177,9 @@ start_daemons() {
     /etc/init.d/gpsd restart 2>/dev/null || \
         /usr/sbin/gpsd -n -b /dev/ttyACM0 2>/dev/null &
 
-    hciconfig hci1 down 2>/dev/null; sleep 0.5
-    hciconfig hci1 up   2>/dev/null; sleep 0.5
-
     pid_alive "$BLE_PID" || {
         "$PYTHON" "$PAYLOAD_DIR/ble_scanner.py" \
-            --db "$DB" --hci 1 --daemon --pidfile "$BLE_PID"
+            --db "$DB" --daemon --pidfile "$BLE_PID"
         wait_daemon "$BLE_PID" 20   # up to 2s
     }
     pid_alive "$WIFI_PID" || {

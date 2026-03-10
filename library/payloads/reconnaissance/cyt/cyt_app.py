@@ -29,6 +29,11 @@ sys.path.insert(0, os.path.join(PAYLOAD_DIR, 'lib'))
 import db as dbmod
 from pagerctl import Pager
 
+# ── Font ──────────────────────────────────────────────────────────
+FONT_TTF = os.path.join(PAYLOAD_DIR, 'fonts', 'DejaVuSansMono.ttf')
+FONT_MD  = 18   # menus, detail view, headers
+FONT_SM  = 18   # status bar, device rows, control bar
+
 # ── Daemon PID paths ──────────────────────────────────────────────
 BLE_PID  = os.path.join(PAYLOAD_DIR, 'ble.pid')
 WIFI_PID = os.path.join(PAYLOAD_DIR, 'wifi.pid')
@@ -44,7 +49,7 @@ STATUS_JSON = os.path.join(PAYLOAD_DIR, 'status.json')
 W, H      = 480, 222
 STATUS_H  = 22
 CTRL_H    = 22
-ROW_H     = 22
+ROW_H     = 24
 LIST_Y    = STATUS_H + 1
 LIST_H    = H - STATUS_H - CTRL_H - 2
 ROWS_VIS  = LIST_H // ROW_H    # ~8 rows
@@ -81,7 +86,32 @@ def daemon_status():
         'wifi':     pid_alive(WIFI_PID),
         'analyzer': pid_alive(ANA_PID),
         'web':      pid_alive(WEB_PID),
+        'gps':      _gps_fix(),
     }
+
+
+def _gps_fix():
+    """Return True if gpsd is running and has a valid fix."""
+    try:
+        import socket, json
+        s = socket.create_connection(('127.0.0.1', 2947), timeout=0.3)
+        s.sendall(b'?WATCH={"enable":true,"json":true}\n?POLL;\n')
+        data = b''
+        s.settimeout(0.3)
+        for _ in range(8):
+            try: data += s.recv(4096)
+            except Exception: break
+        s.close()
+        for line in data.decode(errors='ignore').splitlines():
+            try:
+                obj = json.loads(line)
+                if obj.get('class') == 'TPV' and obj.get('mode', 0) >= 2:
+                    return True
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return False
 
 
 def cyt_running():
@@ -123,7 +153,7 @@ def start_daemons(with_web=True, db_path=DB_PATH):
 
     if not pid_alive(BLE_PID):
         subprocess.Popen([python, os.path.join(PAYLOAD_DIR, 'ble_scanner.py'),
-                          '--db', db_path, '--hci', '1', '--daemon', '--pidfile', BLE_PID],
+                          '--db', db_path, '--daemon', '--pidfile', BLE_PID],
                          env=env)
         _wait_pidfile(BLE_PID, 3.0)
 
@@ -158,11 +188,11 @@ def threat_color(score):
 
 
 def threat_label(score):
-    if score >= 0.80: return 'CRIT'
-    if score >= 0.60: return 'HIGH'
-    if score >= 0.40: return ' MED'
-    if score >= 0.20: return ' LOW'
-    return '  OK'
+    if score >= 0.80: return 'C'
+    if score >= 0.60: return 'H'
+    if score >= 0.40: return 'M'
+    if score >= 0.20: return 'L'
+    return 'N'
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -201,6 +231,12 @@ class CYTApp:
 
     def _sig(self, sig, frame):
         self.running = False
+
+    def _txt(self, x, y, text, color, size=None):
+        self.gfx.draw_ttf(x, y, str(text), color, FONT_TTF, size or FONT_MD)
+
+    def _tw(self, text, size=None):
+        return self.gfx.ttf_width(str(text), FONT_TTF, size or FONT_MD)
 
     def _fetch_loop(self):
         """Background DB fetcher — never blocks the UI thread."""
@@ -360,22 +396,22 @@ class CYTApp:
 
             # Title bar
             self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
-            self.gfx.draw_text(4, 3, 'CHASING YOUR TAIL', WHITE, 2)
+            self._txt(4, 3, 'CHASING YOUR TAIL', WHITE)
             ver = 'v1.0'
-            tw = self.gfx.text_width(ver, 2)
-            self.gfx.draw_text(W - tw - 4, 3, ver, GRAY, 2)
+            tw = self._tw(ver)
+            self._txt(W - tw - 4, 3, ver, GRAY)
 
             # Daemon status line
             y = STATUS_H + 3
             dx = 4
             for label, pid in [('BLE', st['ble']), ('WiFi', st['wifi']),
-                                ('Ana', st['analyzer']), ('Web', st['web'])]:
+                                ('GPS', st['gps']), ('Web', st['web']),
+                                ('Ana', st['analyzer'])]:
                 col = DKGREEN if pid else DARKGRAY
-                self.gfx.draw_text(dx, y, label + ':', GRAY, 2)
-                dx += self.gfx.text_width(label + ': ', 2)
-                status_str = 'ON ' if pid else 'OFF'
-                self.gfx.draw_text(dx, y, status_str, col, 2)
-                dx += self.gfx.text_width('ON  ', 2) + 4
+                self._txt(dx, y, label + ':', GRAY, FONT_SM)
+                dx += self._tw(label + ': ', FONT_SM)
+                self._txt(dx, y, 'ON ' if pid else 'OFF', col, FONT_SM)
+                dx += self._tw('ON  ', FONT_SM) + 4
 
             # Device summary
             y2 = y + 20
@@ -388,14 +424,14 @@ class CYTApp:
             if n_high:  summary += f'  {n_high} HIGH'
             if n_med:   summary += f'  {n_med} MED'
             if not devs: summary = 'No data yet'
-            self.gfx.draw_text(4, y2, summary, CYAN, 2)
+            self._txt(4, y2, summary, CYAN, FONT_SM)
 
             # Separator
             sep_y = y2 + 20
             self.gfx.hline(0, sep_y, W, GRAY)
 
             # Menu items
-            my = sep_y + 6
+            my = sep_y + 4
             for i, (action, label) in enumerate(items):
                 is_sel = (i == sel)
                 fg = GREEN if is_sel else WHITE
@@ -403,21 +439,21 @@ class CYTApp:
 
                 if action == 'web_toggle':
                     web_label = prefix + 'Web UI: '
-                    self.gfx.draw_text(24, my, web_label, fg, 2)
-                    tw = self.gfx.text_width(web_label, 2)
-                    val = 'ON ' if web_on else 'OFF'
+                    self._txt(4, my, web_label, fg)
+                    tw = self._tw(web_label)
+                    val = 'ON' if web_on else 'OFF'
                     vcol = DKGREEN if web_on else RED
-                    self.gfx.draw_text(24 + tw, my, val, vcol, 2)
+                    self._txt(4 + tw, my, val, vcol)
                 else:
-                    self.gfx.draw_text(24, my, prefix + label, fg, 2)
+                    self._txt(4, my, prefix + label, fg)
 
-                my += 20
+                my += 22
 
             # Control bar
             cy = H - CTRL_H
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
             self.gfx.hline(0, cy, W, GRAY)
-            self.gfx.draw_text(4, cy + 3, '[^v] Navigate  [A] Select  [B] Exit', WHITE, 2)
+            self._txt(4, cy + 3, '[A] Select', WHITE, FONT_SM)
 
             self.gfx.flip()
 
@@ -453,8 +489,6 @@ class CYTApp:
                     return 'stop', web_on
                 elif action == 'exit':
                     return 'exit', web_on
-            elif btn == Pager.BTN_B:
-                return 'exit', web_on
 
         return 'exit', False
 
@@ -468,19 +502,19 @@ class CYTApp:
 
     def _draw_status_bar(self, ble_total, wifi_total, threats, filter_src):
         self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
-        ts = time.strftime('%H:%M')
-        self.gfx.draw_text(2, 3, f'CYT  B:{ble_total} W:{wifi_total}', WHITE, 2)
+        ts = time.strftime('%I:%M%p').lstrip('0')
+        self._txt(2, 3, f'CYT  B:{ble_total} W:{wifi_total}', WHITE, FONT_SM)
         right = f'{filter_src.upper()}  {ts}'
         if threats > 0:
             right = f'!{threats}  ' + right
-        tw = self.gfx.text_width(right, 2)
-        self.gfx.draw_text(W - tw - 2, 3, right, RED if threats > 0 else GRAY, 2)
+        tw = self._tw(right, FONT_SM)
+        self._txt(W - tw - 2, 3, right, RED if threats > 0 else GRAY, FONT_SM)
 
     def _draw_ctrl_bar(self):
         y = H - CTRL_H
         self.gfx.fill_rect(0, y, W, CTRL_H, DARKGRAY)
         self.gfx.hline(0, y, W, GRAY)
-        self.gfx.draw_text(4, y + 3, '[A]Detail [B]Menu [<>]Filter [^v]Scroll', WHITE, 2)
+        self._txt(4, y + 3, '[A] Detail  [B] Menu  [<>] Filter', WHITE, FONT_SM)
 
     def _draw_device_row(self, idx, d, selected):
         y  = LIST_Y + idx * ROW_H
@@ -488,22 +522,32 @@ class CYTApp:
         fg = threat_color(d['threat_score'])
         self.gfx.fill_rect(0, y, W, ROW_H, bg)
 
-        bar_h = max(2, int(d['threat_score'] * ROW_H))
-        self.gfx.fill_rect(0, y + (ROW_H - bar_h), 4, bar_h, fg)
+        gap = self._tw('  ', FONT_SM)
 
         lbl = threat_label(d['threat_score'])
-        self.gfx.draw_text(6,   y + 3, f'{lbl} {d["threat_score"]:.2f}', fg, 2)
-        self.gfx.draw_text(116, y + 3, d['mac'], WHITE if selected else GRAY, 2)
+        score_str = f'{lbl} {d["threat_score"]:.2f}'
+        x = 2
+        self._txt(x, y + 3, score_str, fg, FONT_SM)
+        x += self._tw(score_str, FONT_SM) + gap
+
+        self._txt(x, y + 3, d['mac'], WHITE if selected else GRAY, FONT_SM)
+        x += self._tw(d['mac'], FONT_SM) + gap
 
         src_col = CYAN if d['source'] == 'ble' else (ORANGE if d['source'] == 'drone' else GREEN)
         src_label = d['source'].upper()
         if d.get('cluster_id'): src_label += f' C{d["cluster_id"]}'
         if d.get('group_id'):   src_label += f' G{d["group_id"]}'
-        self.gfx.draw_text(326, y + 3, src_label, src_col, 2)
+        self._txt(x, y + 3, src_label, src_col, FONT_SM)
+        x += self._tw(src_label, FONT_SM) + gap
 
-        rssi_str = f'{d["avg_rssi"]}'
-        tw = self.gfx.text_width(rssi_str, 2)
-        self.gfx.draw_text(W - tw - 4, y + 3, rssi_str, GRAY, 2)
+        # Manufacturer — truncated to remaining space
+        mfr = (d.get('manufacturer') or d.get('name') or '').strip()
+        if mfr and x < W - 20:
+            avail = W - x - 4
+            while mfr and self._tw(mfr, FONT_SM) > avail:
+                mfr = mfr[:-1]
+            if mfr:
+                self._txt(x, y + 3, mfr, CYAN, FONT_SM)
 
     def _show_detail(self, d):
         import datetime as dt
@@ -520,45 +564,45 @@ class CYTApp:
             fg = threat_color(d['threat_score'])
             y  = 4
 
-            self.gfx.draw_text(4, y, 'Device Detail', WHITE, 2); y += 22
+            self._txt(4, y, 'Device Detail', WHITE); y += 22
             self.gfx.hline(0, y, W, GRAY); y += 6
 
+            mfr = (d.get('manufacturer') or d.get('name') or 'Unknown')[:24]
             lines = [
-                (f'MAC:   {d["mac"]}  ({d["source"].upper()})', WHITE),
-                (f'Score: {d["threat_score"]:.2f}  [{lvl(d["threat_score"])}]', fg),
-                (f'Mfr:   {d.get("manufacturer") or "Unknown"}', CYAN),
-                (f'Name:  {d.get("name") or "(none)"}', CYAN),
-                (f'RSSI:  {d["avg_rssi"]} dBm   Seen: {d["sighting_count"]}x', WHITE),
+                (f'MAC: {d["mac"]}', WHITE),
+                (f'{d["source"].upper()}  Score: {d["threat_score"]:.2f}  [{lvl(d["threat_score"])}]', fg),
+                (f'RSSI: {d["avg_rssi"]}dBm  Seen: {d["sighting_count"]}x', WHITE),
             ]
             if d.get('first_seen'):
-                first = dt.datetime.fromtimestamp(d['first_seen']).strftime('%H:%M:%S')
-                last  = dt.datetime.fromtimestamp(d['last_seen']).strftime('%H:%M:%S')
+                first = dt.datetime.fromtimestamp(d['first_seen']).strftime('%I:%M%p').lstrip('0')
+                last  = dt.datetime.fromtimestamp(d['last_seen']).strftime('%I:%M%p').lstrip('0')
                 dur   = int((d['last_seen'] - d['first_seen']) / 60)
-                lines += [
-                    (f'First: {first}  Last: {last}', WHITE),
-                    (f'Duration: {dur} min', WHITE),
-                ]
+                lines.append((f'{first} - {last}  {dur}min', WHITE))
+            lines.append((f'Mfr: {mfr}', CYAN))
             if d.get('locations_seen', 0) > 1:
-                lines.append((f'** MULTI-LOCATION: {d["locations_seen"]} positions **', RED))
+                lines.append((f'MULTI-LOC: {d["locations_seen"]} positions', RED))
             if d.get('cluster_id'):
-                lines.append((f'Cluster C{d["cluster_id"]} — rotating MAC detected', YELLOW))
+                lines.append((f'Cluster C{d["cluster_id"]} (MAC rotating)', YELLOW))
             if d.get('group_id'):
-                lines.append((f'Group G{d["group_id"]} — travels with others', ORANGE))
+                lines.append((f'Group G{d["group_id"]} (co-traveling)', ORANGE))
             if is_wl:
                 lines.append(('[ WHITELISTED ]', DKGREEN))
 
+            clip = H - CTRL_H - 4
             for text, color in lines:
-                self.gfx.draw_text(4, y, text, color, 2)
-                y += 18
+                if y + FONT_MD > clip:
+                    break
+                self._txt(4, y, text, color)
+                y += FONT_MD + 4
 
             if msg:
-                self.gfx.draw_text(4, y + 2, msg, GREEN, 2)
+                self._txt(4, H - CTRL_H - FONT_MD - 4, msg, GREEN)
 
             cy = H - CTRL_H
             self.gfx.hline(0, cy - 1, W, GRAY)
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
-            wl_label = '[<] Un-whitelist' if is_wl else '[<] Whitelist'
-            self.gfx.draw_text(4, cy + 3, f'[A/B] Back  {wl_label}', WHITE, 2)
+            wl_label = '[<] Un-WL' if is_wl else '[<] Whitelist'
+            self._txt(4, cy + 3, f'[A/B] Back  {wl_label}', WHITE, FONT_SM)
             self.gfx.flip()
 
         # Check current whitelist status using a short-lived connection
@@ -684,7 +728,7 @@ class CYTApp:
                     need_redraw = True
 
             # Check for time change (status bar HH:MM)
-            cur_time = time.strftime('%H:%M')
+            cur_time = time.strftime('%I:%M%p').lstrip('0')
             if cur_time != last_time:
                 last_time   = cur_time
                 need_redraw = True
@@ -776,37 +820,37 @@ class CYTApp:
             # ── Draw ─────────────────────────────────────────────
             self.gfx.clear(BLACK)
             self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
-            self.gfx.draw_text(4, 3, 'WHITELIST', WHITE, 2)
+            self._txt(4, 3, 'WHITELIST', WHITE)
             n = len(entries)
-            self.gfx.draw_text(W - self.gfx.text_width(f'{n} entries', 2) - 4, 3,
-                               f'{n} entries', GRAY, 2)
+            self._txt(W - self._tw(f'{n} entries') - 4, 3, f'{n} entries', GRAY)
 
             y = STATUS_H + 4
+            row_h = FONT_SM + 6
             if not entries:
-                self.gfx.draw_text(4, y + 20, 'Whitelist is empty.', GRAY, 2)
+                self._txt(4, y + 20, 'Whitelist is empty.', GRAY)
             else:
-                visible = (H - STATUS_H - CTRL_H - 4) // 20
+                visible = (H - STATUS_H - CTRL_H - 4) // row_h
                 start   = max(0, sel - visible + 1) if sel >= visible else 0
                 for i, e in enumerate(entries[start:start + visible]):
                     row_i = start + i
                     is_sel = (row_i == sel)
                     bg = DARKGRAY if is_sel else BLACK
-                    self.gfx.fill_rect(0, y, W, 19, bg)
+                    self.gfx.fill_rect(0, y, W, row_h - 1, bg)
                     prefix = '> ' if is_sel else '  '
                     name = e.get('name') or ''
                     label = f'{prefix}{e["mac"]}'
                     if name:
                         label += f'  {name[:16]}'
-                    self.gfx.draw_text(4, y + 2, label, WHITE if is_sel else GRAY, 2)
-                    y += 20
+                    self._txt(4, y + 2, label, WHITE if is_sel else GRAY, FONT_SM)
+                    y += row_h
 
             if msg and time.time() < msg_timer:
-                self.gfx.draw_text(4, H - CTRL_H - 20, msg, GREEN, 2)
+                self._txt(4, H - CTRL_H - FONT_SM - 4, msg, GREEN, FONT_SM)
 
             cy = H - CTRL_H
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
             self.gfx.hline(0, cy, W, GRAY)
-            self.gfx.draw_text(4, cy + 3, '[^v] Scroll  [A] Remove  [B] Back', WHITE, 2)
+            self._txt(4, cy + 3, '[A] Remove  [B] Back', WHITE, FONT_SM)
             self.gfx.flip()
             time.sleep(0.05)
 
@@ -817,8 +861,8 @@ class CYTApp:
         Returns: 'exit_keep' | 'exit_stop' | 'exit_stop_web' | 'back'
         """
         items = [
-            ('exit_keep',     'Keep CYT running  (exit UI only)'),
-            ('exit_stop_web', 'Stop web UI  (keep BLE/WiFi running)'),
+            ('exit_keep',     'Keep running (exit UI)'),
+            ('exit_stop_web', 'Stop web UI only'),
             ('exit_stop',     'Stop CYT completely'),
             ('back',          'Back to device list'),
         ]
@@ -830,22 +874,22 @@ class CYTApp:
 
             # Header
             self.gfx.fill_rect(0, 0, W, STATUS_H, NAVY)
-            self.gfx.draw_text(4, 3, 'Exit CYT?', WHITE, 1)
+            self._txt(4, 3, 'Exit CYT?', WHITE)
 
             # Items
-            my = STATUS_H + 16
+            my = STATUS_H + 10
             for i, (action, label) in enumerate(items):
                 is_sel = (i == sel)
                 fg     = GREEN if is_sel else WHITE
-                prefix = chr(16) + ' ' if is_sel else '  '
-                self.gfx.draw_text(20, my, prefix + label, fg, 1)
-                my += 20
+                prefix = '> ' if is_sel else '  '
+                self._txt(4, my, prefix + label, fg)
+                my += FONT_MD + 6
 
             # Control bar
             cy = H - CTRL_H
             self.gfx.fill_rect(0, cy, W, CTRL_H, DARKGRAY)
             self.gfx.hline(0, cy, W, GRAY)
-            self.gfx.draw_text(4, cy + 4, '[^v] Navigate  [A] Select  [B] Back', WHITE, 1)
+            self._txt(4, cy + 4, '[A] Select  [B] Back', WHITE, FONT_SM)
 
             self.gfx.flip()
 
@@ -918,8 +962,8 @@ class CYTApp:
 
     def _show_message(self, msg):
         self.gfx.clear(BLACK)
-        tw = self.gfx.text_width(msg, 2)
-        self.gfx.draw_text((W - tw) // 2, H // 2 - 8, msg, WHITE, 2)
+        tw = self._tw(msg)
+        self._txt((W - tw) // 2, H // 2 - FONT_MD // 2, msg, WHITE)
         self.gfx.flip()
 
 

@@ -81,6 +81,19 @@ def parse_apple_type(hex_data: str) -> str:
     return 'Apple Device'
 
 
+def detect_hci() -> int:
+    """Return the ID of the first available HCI adapter, or 0 as fallback."""
+    try:
+        out = subprocess.check_output(['hciconfig'], text=True, stderr=subprocess.DEVNULL)
+        for line in out.splitlines():
+            m = re.match(r'hci(\d+):', line)
+            if m:
+                return int(m.group(1))
+    except Exception:
+        pass
+    return 0
+
+
 def reset_adapter(hci_id: int) -> bool:
     """Hard-reset the HCI adapter to clear any stuck scan state."""
     os.system(f'hciconfig hci{hci_id} down 2>/dev/null')
@@ -231,13 +244,15 @@ def scan_loop(conn, hci_id: int, verbose: bool):
 def main():
     parser = argparse.ArgumentParser(description='CYT BLE Scanner')
     parser.add_argument('--db',      required=True, help='SQLite database path')
-    parser.add_argument('--hci',     type=int, default=1, help='HCI device number (default: 1)')
+    parser.add_argument('--hci',     type=int, default=-1, help='HCI device number (-1 = auto-detect)')
     parser.add_argument('--daemon',  action='store_true', help='Fork to background')
     parser.add_argument('--pidfile', help='Write PID to file')
     parser.add_argument('--verbose', action='store_true', help='Print sightings to stdout')
     args = parser.parse_args()
 
     conn = dbmod.open_db(args.db)
+
+    hci_id = args.hci if args.hci >= 0 else detect_hci()
 
     if args.daemon:
         daemonize()
@@ -252,13 +267,13 @@ def main():
     gpsmod.start()   # connect to gpsd in background thread
 
     # Reset adapter to clear any stuck scan state
-    reset_adapter(args.hci)
+    reset_adapter(hci_id)
 
     if not args.daemon:
-        print(f'[ble] Scanning on hci{args.hci} → {args.db}', flush=True)
+        print(f'[ble] Scanning on hci{hci_id} → {args.db}', flush=True)
 
     try:
-        scan_loop(conn, args.hci, args.verbose)
+        scan_loop(conn, hci_id, args.verbose)
     finally:
         conn.close()
         if args.pidfile and os.path.exists(args.pidfile):

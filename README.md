@@ -128,16 +128,16 @@ Data files created at runtime (not committed):
 
 ```bash
 # From the repo root — copies the entire payload directory to the pager
-scp -r library/payloads/reconnaissance/cyt root@172.16.52.1:/mmc/root/payloads/reconnaissance/
+scp -r library/payloads/reconnaissance/cyt root@172.16.52.1:/mmc/root/payloads/user/reconnaissance/
 
 # Set execute permission on the entry point
-ssh root@172.16.52.1 "chmod +x /mmc/root/payloads/reconnaissance/cyt/payload.sh"
+ssh root@172.16.52.1 "chmod +x /mmc/root/payloads/user/reconnaissance/cyt/payload.sh"
 ```
 
 On first run the payload will check for `python3` and offer to install it automatically if missing.
 
 `pagerctl` (`libpagerctl.so` + `pagerctl.py`) is required and must be present in one of:
-- `/mmc/root/payloads/reconnaissance/cyt/lib/` ← copied here automatically on first run
+- `/mmc/root/payloads/user/reconnaissance/cyt/lib/` ← copied here automatically on first run
 - `/mmc/root/payloads/utilities/PAGERCTL/` ← if PAGERCTL payload is installed
 
 ---
@@ -154,16 +154,16 @@ On first run the payload will check for `python3` and offer to install it automa
 ssh root@172.16.52.1
 
 # GUI mode (starts scanners + display UI)
-/mmc/root/payloads/reconnaissance/cyt/payload.sh
+/mmc/root/payloads/user/reconnaissance/cyt/payload.sh
 
 # Headless mode (scanners only, no display — keeps running after SSH disconnect)
-/mmc/root/payloads/reconnaissance/cyt/payload.sh --headless
+/mmc/root/payloads/user/reconnaissance/cyt/payload.sh --headless
 
 # Check what's running
-/mmc/root/payloads/reconnaissance/cyt/payload.sh --status
+/mmc/root/payloads/user/reconnaissance/cyt/payload.sh --status
 
 # Stop everything
-/mmc/root/payloads/reconnaissance/cyt/payload.sh --stop
+/mmc/root/payloads/user/reconnaissance/cyt/payload.sh --stop
 ```
 
 ### On-device display UI
@@ -233,7 +233,7 @@ Whitelist data is stored in `whitelist.db` — a separate file from `cyt.db`. Yo
 
 ```bash
 # On device
-cd /mmc/root/payloads/reconnaissance/cyt/
+cd /mmc/root/payloads/user/reconnaissance/cyt/
 python3 reporter.py --db cyt.db --out /tmp/cyt_report
 
 # Options
